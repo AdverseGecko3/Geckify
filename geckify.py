@@ -6,30 +6,39 @@ import constant
 class Geckify:
     def __init__(self):
         self.spotify_token = ""
-        self.user_id = ""
-        self.refresh_spotify_token()
-        self.get_user_profile()
+        self.spotify_user_id = ""
 
     def refresh_spotify_token(self):
         refresh_class = Refresh()
         self.spotify_token = refresh_class.refresh()
         print(self.spotify_token)
 
-    def get_user_profile(self):
+    def get_user_profile(self, spotify_token=None):
         query = "https://api.spotify.com/v1/me"
         response = requests.get(query,
                                 headers={"Content-Type": constant.TYPE_JSON,
-                                         "Authorization": constant.BEARER.format(self.spotify_token)})
+                                         "Authorization": constant.BEARER.format(spotify_token if spotify_token != None else self.spotify_token)})
+
+        print(response.json())
+
+        if response.status_code != 200:
+            return 0
+
         response_json = response.json()
 
-        self.user_id = response_json["id"]
+        return response_json
 
     def set_spotify_token(self, token):
         self.spotify_token = token
 
+    def get_spotify_token(self):
+        return self.spotify_token
+
+    def set_user_id(self, user_id):
+        self.spotify_user_id = user_id
+
     def get_user_playlists(self):
-        query = "https://api.spotify.com/v1/users/{}/playlists".format(
-            self.user_id)
+        query = f"https://api.spotify.com/v1/users/{self.spotify_user_id}/playlists"
         params = {"limit": 50}
         response = requests.get(query,
                                 headers={"Content-Type": constant.TYPE_JSON,
@@ -57,12 +66,12 @@ class Geckify:
             response_json = response.json()
 
             if (index == 1):
-                print("User tracks has {} saved songs\n".format(
-                    response_json["total"]))
+                print(
+                    f"User tracks has {response_json['total']} saved songs\n")
 
             for i in response_json["items"]:
-                print("Checking saved song {} of {}".format(
-                    index, response_json["total"]))
+                print(
+                    f"Checking saved song {index} of {response_json['total']}")
 
                 current_artist = (i["track"]["album"]["artists"][0]
                                   ["name"], i["track"]["album"]["artists"][0]["id"])
@@ -93,12 +102,12 @@ class Geckify:
             response_json = response.json()
 
             if (index == 1):
-                print("Following {} people\n".format(
-                    response_json["artists"]["total"]))
+                print(
+                    f"Following {response_json['artists']['total']} people\n")
 
             for i in response_json["artists"]["items"]:
-                print("Checking follower {} of {}".format(
-                    index, response_json["artists"]["total"]))
+                print(
+                    f"Checking follower {index} of {response_json['artists']['total']}")
                 if (type == "id-name"):
                     following_artists[i["id"]] = i["name"]
                 else:
@@ -111,7 +120,7 @@ class Geckify:
                 return following_artists
 
     def get_top_user(self, type: str, time_range: str):
-        query = "https://api.spotify.com/v1/me/top/{}".format(type)
+        query = f"https://api.spotify.com/v1/me/top/{type}"
         params = {"limit": 50, "time_range": time_range}
         index = 1
         list_top = list()
@@ -124,13 +133,13 @@ class Geckify:
             response_json = response.json()
 
             for i in response_json["items"]:
-                print("Checking {} {} of {}".format(
-                    type[:-1], index, response_json["total"]))
+                print(
+                    f"Checking {type[:-1]} {index} of {response_json['total']}")
                 if (type == "artists"):
                     list_top.append(i["name"])
                 else:
-                    list_top.append("{} from {}".format(
-                        i["name"], i["artists"][0]["name"]))
+                    list_top.append(
+                        f"{i['name']} from {i['artists'][0]['name']}")
                 index += 1
 
             if (response_json["next"] != None):

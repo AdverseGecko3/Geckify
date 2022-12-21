@@ -1,5 +1,5 @@
-from secret import client_id, client_secret
 from requests_oauthlib import OAuth2Session
+import os
 
 
 class Authorize:
@@ -19,7 +19,7 @@ class Authorize:
     def begin_authorization(self):
         # Redirect user to Spotify for authorization
         self.spotify = OAuth2Session(
-            client_id, scope=self.scopes, redirect_uri=self.redirect_uri)
+            os.getenv("client_id"), scope=self.scopes, redirect_uri=self.redirect_uri)
         authorization_url = self.spotify.authorization_url(
             self.authorization_base_url)
         return authorization_url[0]
@@ -28,9 +28,13 @@ class Authorize:
         from requests.auth import HTTPBasicAuth
 
         # Fetch the access token
-        auth = HTTPBasicAuth(client_id, client_secret)
-        token = self.spotify.fetch_token(
-            self.token_base_url, auth=auth, authorization_response=redirect_response)
-        self.spotify.close()
-
-        return token["access_token"]
+        try:
+            auth = HTTPBasicAuth(os.getenv("client_id"),
+                                 os.getenv("client_secret"))
+            token = self.spotify.fetch_token(
+                self.token_base_url, auth=auth, authorization_response=redirect_response)
+            self.spotify.close()
+            return token["access_token"]
+        except Exception as e:
+            print(f"Ooops, and error occurred!\nError: {e}\n")
+            return 0
