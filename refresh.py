@@ -7,13 +7,8 @@ class Refresh:
     def __init__(self):
         self.refresh_token = ""
         self.base_64 = self.base64code()
-        self.get_refresh_token()
-    
-    def get_refresh_token(self):
-        from data_store import DataStore
-        data = DataStore().load_data()
 
-
+    # Encode client keys format base64
     def base64code(self):
         code = f"{os.getenv('client_id')}:{os.getenv('client_secret')}"
         code_bytes = code.encode("ascii")
@@ -22,11 +17,14 @@ class Refresh:
 
         return base_64_message
 
-    def refresh(self):
+    # Get the new access_token via the saved refresh_token given when the first authorization was done
+    def refresh(self, refresh_token):
         query = "https://accounts.spotify.com/api/token"
         response = requests.post(query,
                                  data={"grant_type": "refresh_token",
-                                       "refresh_token": self.refresh_token},
+                                       "refresh_token": refresh_token},
                                  headers={"Authorization": f"Basic {self.base_64}"})
+        
+        #print(response.json())
 
         return response.json()["access_token"]

@@ -1,47 +1,134 @@
 from geckify import Geckify
 from constant import CHOOSE_OPTION, WRONG_INPUT
 from dotenv import load_dotenv
+from datetime import datetime
 
-
-def login(geckify):
+# Login part
+def login():
     while True:
-        print("0. Exit")
-        print("1. Login with my account")
-        print("2. Login with other account")
         try:
+            login_menu()
             option = int(input(CHOOSE_OPTION))
             print()
-            match option:
-                case 0:
-                    print("See ya!")
-                    exit()
-                case 1:
-                    check_user(geckify.get_user_profile())
-                    break
-                case 2:
-                    access_token = authorize_new_user()
-                    if access_token == 0:
-                        continue
-                    response = geckify.get_user_profile(access_token)
-                    if response != 0:
-                        geckify.set_spotify_token(access_token)
-                        geckify.set_user_id(response["id"])
-                        manage_spotify_token(response, access_token)
-                        print(f"Hi, {response['display_name']}!")
-                        break
-                case _:
-                    print(WRONG_INPUT)
-                    print()
+            res = login_manage_option(option)
+            if res:
+                break
             print()
         except ValueError:
             print("Wrong input")
             print()
 
+# Print login menu 
+def login_menu():
+    print("0. Exit")
 
-def check_user(get_user_profile):
-    from data_store import DataStore
-    if DataStore().check_has_items():
-        get_user_profile()
+# Manage the option selected of the login menu
+def login_manage_option(option):
+    match option:
+        case 0:
+            print("See ya!")
+            exit()
+        case 1:
+            response = check_user()
+            if response != 0:
+                return True
+        case 2:
+            response = new_user_login()
+            if response != 0:
+                return True
+        case _:
+            print(WRONG_INPUT)
+            print()
+
+# Check if the user 
+def check_user():
+    from data_store import check_has_items, load_data
+    if check_has_items():
+        users = load_data()
+        user = select_user(users["users"])
+        response = test_user(user["access_token"])
+        if type(response) is dict:   
+            set_values_to_geckify(user)
+            return response
+        if response[0] == "0":
+            print(f"Error while trying to get user profile: {response[1:]}.")
+            if response[1:] == "The access token expired":
+                res = do_refresh_token(user["refresh_token"])
+                return res
+            return 0
+
+    else:
+        print("Oops, looks like no accounts are saved\nGoing to new user login...")
+        response = new_user_login()
+        return response
+
+
+def select_user(users):
+    user = ""
+    while True:
+        index = 1
+        for i in users:
+            print(f"{index} - {i['display_name']} (id: {i['id']})")
+            index += 1
+
+        try:
+            option_user = int(input(CHOOSE_OPTION))
+            print()
+            if (option_user > 0) and (option_user <= len(users)):
+                print(
+                    f"User {users[option_user-1]['display_name']} (id: {users[option_user-1]['id']}) selected.\n")
+                user = users[option_user-1]
+                break
+            else:
+                print(f"Oops, {option_user} is not an available option!")
+        except TypeError:
+            print("Wrong input")
+            print()
+
+    return user
+
+
+def new_user_login():
+    while True:
+        access_token, refresh_token = authorize_new_user()
+        if access_token != 0:
+            break
+        print("Returning to login...")
+
+    response = test_user(access_token)
+    if type(response) is dict:
+        user = {
+            "id": response["id"],
+            "display_name": response["display_name"],
+            "access_token": access_token,
+            "refresh_token": refresh_token
+        }
+        print(user)
+        res = manage_spotify_token(user)
+        if res == 0:
+            return 0
+        set_values_to_geckify(user)
+        return 1
+    if response[0] != "0":
+        print(f"Error while trying to get user profile: {response[1:]}.")
+        res = ""
+        if response[1:] == "The access token expired":
+            res = do_refresh_token(user["refresh_token"])
+            return res
+        return 0
+    print("Error")
+    return 0
+
+
+def test_user(access_token):
+    return geckify.get_user_profile(access_token)
+
+
+def set_values_to_geckify(user):
+    geckify.set_spotify_token(user["access_token"])
+    geckify.set_user_id(user["id"])
+    geckify.set_display_name(user['display_name'])
+    print(f"Hi, {geckify.get_display_name()}!\n")
 
 
 def authorize_new_user():
@@ -52,21 +139,68 @@ def authorize_new_user():
 
     redirect_response = input(
         '\n\nPaste the full redirect URL here: ')
-    access_token = authorize.get_token(redirect_response)
+    access_token, refresh_token = authorize.get_token(redirect_response)
+    print(f"Access Token: {access_token}\nRefresh Token: {refresh_token}")
 
-    return access_token
-
-
-def manage_spotify_token(response, access_token):
-    from data_store import DataStore
-
-    data = {"id": response["id"], "display_name": response["display_name"],
-            "access_token": access_token}
-    r = DataStore().check_user_exists(data["id"])
-    print()
+    return access_token, refresh_token
 
 
-def print_menu():
+def manage_spotify_token(user, type: str = "None"):
+    from data_store import check_user_exists, add_data, replace_access_token
+
+    if type == "None":
+        if check_user_exists(user["id"]):
+            print("Looks like the user is already added, next time you can login with the saved accounts to save time =D")
+            add_data(user)
+        else:
+            add_data(user)
+        return
+    if type == "refresh":
+        if check_user_exists(user["id"]):
+            print(f'Ya existe')
+            replace_access_token(user)
+        else:
+            print("Cannot replace, user is not saved.")
+            return 0
+    else:
+        print(f"Parameter {type} is not controlled.")
+        return 0
+
+
+def do_refresh_token(refresh_token):
+    print("Token expired. Refreshing...\n")
+    new_access_token = geckify.refresh_spotify_token(refresh_token)
+    response = test_user(new_access_token)
+    if type(response) is dict:
+        return 1
+    if response[0] == "0":
+        user = {
+            "id": response["id"],
+            "display_name": response["display_name"],
+            "access_token": new_access_token,
+            "refresh_token": refresh_token
+        }
+        res = manage_spotify_token(user, "refresh")
+        if res == 0:
+            return 0
+        set_values_to_geckify(user)
+        return 1
+
+
+def app():
+    while True:
+        try:
+            app_print_menu()
+            option = int(input(CHOOSE_OPTION))
+            print()
+            app_manage_option(option)
+            print()
+        except ValueError:
+            print("Wrong input")
+            print()
+
+
+def app_print_menu():
     print("GECKIFY")
     print("MENU")
     print("0. Exit")
@@ -75,9 +209,10 @@ def print_menu():
     print("3. Check top artists")
     print("4. Check top songs")
     print("5. Check followed people")
+    print("6. Check recently played songs")
 
 
-def manage_option(option):
+def app_manage_option(option):
     match option:
         case 0:
             print("See ya!")
@@ -141,6 +276,8 @@ def manage_option(option):
                 case _:
                     print(WRONG_INPUT)
                     print()
+        case 6:
+            print_recently_played(geckify.get_recently_played())
         case _:
             print(WRONG_INPUT)
             print()
@@ -164,19 +301,25 @@ def print_user_playlists(user_playlists_dict):
 
 
 def print_artists_from_liked_songs(artists_dict, following_artists):
-    print("Artists from liked songs\n")
-    artists_dict = dict(sorted(artists_dict.items(),
-                        key=lambda item: item[1], reverse=True))
+    now = datetime.now().strftime("%d_%m_%Y__%H_%M_%S")
+    filename = f'artists_from_liked_songs_{now}.txt'
+    with open(filename, 'w') as f:
+        f.write('Artists from liked songs\n\n')
 
-    following_text = ""
-    for artist, saved in artists_dict.items():
-        if artist[1] in following_artists:
-            following_text = "Following"
-        else:
-            following_text = "Not following"
+        # Sort dict by liked songs quantity
+        artists_dict = dict(sorted(artists_dict.items(),
+                        key=lambda item: (-item[1], item[0][0].casefold())))
 
-        print(f"{saved} saved from {artist[0]} ({following_text})")
-    print()
+        following_text = ""
+        for artist, saved in artists_dict.items():
+            if artist[1] in following_artists:
+                following_text = "Following"
+            else:
+                following_text = "Not following"
+
+            f.write(f"{saved} saved from {artist[0]} ({following_text})\n")
+            
+    print(f'{filename} created at root project!\n')
 
 
 def print_top(list_top):
@@ -192,10 +335,10 @@ def print_top(list_top):
 def print_followed_people(following_artists, sort_type):
     if (sort_type == "artist"):
         following_artists = dict(
-            sorted(following_artists.items(), key=lambda item: item[1], reverse=True))
+            sorted(following_artists.items(), key=lambda item: item[0]))
     else:
         following_artists = dict(
-            sorted(following_artists.items(), key=lambda item: item[0]))
+            sorted(following_artists.items(), key=lambda item: item[1], reverse=True))
 
     max_name = len(max(following_artists, key=len)) + 2
     max_number = len(str(max(following_artists.values()))) + \
@@ -214,19 +357,15 @@ def print_followed_people(following_artists, sort_type):
     print()
 
 
+def print_recently_played(recently_played):
+    print("\nRecently played:\n")
+    for i in recently_played:
+        print(i)
+
+
 if __name__ == "__main__":
     load_dotenv()
     geckify = Geckify()
 
-    login(geckify)
-
-    while True:
-        try:
-            print_menu()
-            option = int(input(CHOOSE_OPTION))
-            print()
-            manage_option(option)
-            print()
-        except ValueError:
-            print("Wrong input")
-            print()
+    login()
+    app()
