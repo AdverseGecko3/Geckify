@@ -9,9 +9,11 @@ class Geckify:
         self.user_id = ""
         self.display_name = ""
 
-    # Initialize Refresh, get the refresh_token and return it
+    # Refresh the spotify token
     def refresh_spotify_token(self, refresh_token):
+        # Initialize Refresh class
         refresh_class = Refresh()
+        # Get the refresh token and return it
         self.access_token = refresh_class.refresh(refresh_token)
         return self.get_spotify_token()
 
@@ -27,7 +29,7 @@ class Geckify:
         #print(response_json)
         #print(type(response_json))
 
-        # If status code is not 200 (401, 403, or others) return a custom string with 0 and the error message
+        # If status code is not 200 return a custom string with 0 and the error message
         if response.status_code != 200:
             return f"0{response_json['error']['message']}"
 
@@ -103,6 +105,7 @@ class Geckify:
                     artists_dict[current_artist] = 1
 
                 index += 1
+            print("\n\n")
 
             if response_json["next"] != None:
                 query = response_json["next"]
@@ -198,6 +201,7 @@ class Geckify:
                                     headers={"Content-Type": constant.TYPE_JSON,
                                              "Authorization": constant.BEARER.format(self.access_token)})
             response_json = response.json()
+            print(response_json)
 
             # As before, check if the song has multiple artists, and concat them
             for i in response_json["items"]:
@@ -207,7 +211,7 @@ class Geckify:
                 artists = artists[:-2]
 
                 list_recently_played.append(
-                    f"{i['track']['album']['name']} from {artists}")
+                    f"{artists} - {i['track']['name']}, from the album {i['track']['album']['name']}")
                 
                 index += 1
             

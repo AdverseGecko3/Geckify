@@ -4,7 +4,7 @@ import os
 
 class Authorize:
     def __init__(self):
-        self.redirect_uri = 'https://adversegecko3.github.io/'
+        self.redirect_uri = 'https://www.google.com/'
         self.authorization_base_url = "https://accounts.spotify.com/authorize"
         self.token_base_url = "https://accounts.spotify.com/api/token"
         self.scopes = [
@@ -39,5 +39,5 @@ class Authorize:
             self.spotify.close()
             return token["access_token"], token["refresh_token"]
         except Exception as e:
-            print(f"Ooops, and error occurred!\nError: {e}\n")
-            return 0
+            print(f"Ooops, and error occurred!\n")
+            return 0, 0

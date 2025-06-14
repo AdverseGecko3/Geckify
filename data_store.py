@@ -20,10 +20,17 @@ def load_data():
         add_data("")
         print("File created!")
         return 0
+    except EOFError:
+        # If file is empty, generate data
+        print("users.data is empty. Generating data...")
+        add_data("")
+        print("Data generated!")
+        return 0
 
 # Add an item to the data file
 def add_data(data):
     current_data = ""
+    # If users.data has data load it, if not generate the base data
     if data != "":
         current_data = load_data()
     else:
@@ -49,6 +56,8 @@ def replace_data(data):
 def check_has_items():
     try:
         dataset = load_data()
+        if dataset == 0:
+            return False
         return True if len(dataset["users"]) != 0 else False
     except FileNotFoundError:
         # If file is not found, create it
